@@ -13,3 +13,6 @@ typedef struct
 extern Preferences preferences;
 
 void reload_preferences();
+
+uint8_t action_menu_font_size(void);
+bool cycle_action_menu_font_size(void);

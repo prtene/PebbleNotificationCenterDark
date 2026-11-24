@@ -5,14 +5,16 @@
 #include "window_notification.h"
 #include "commons/connection/bluetooth.h"
 #include "connection/packets.h"
+#include "data/preferences.h"
 
 static const int16_t menu_outside_margin_top = 24;
 static const int16_t menu_outside_margin_bottom = 8;
 static const int16_t menu_outside_margin_horizontal = 8;
-static const int16_t item_padding = 2;
+static const int16_t item_padding = 4;
 
 static Layer* menu_background;
 static MenuLayer* menu_layer;
+static GFont menu_font;
 static bool frozen = false;
 
 static void send_notification_voice();
@@ -22,8 +24,8 @@ static void menu_paint_background(Layer* layer, GContext* ctx)
 {
     const GRect background_bounds = layer_get_bounds(menu_background);
 
-    graphics_context_set_fill_color(ctx, GColorWhite);
-    graphics_context_set_stroke_color(ctx, GColorBlack);
+    graphics_context_set_fill_color(ctx, GColorBlack);
+    graphics_context_set_stroke_color(ctx, GColorWhite);
     graphics_fill_rect(ctx, background_bounds, 0, GCornerNone);
     graphics_draw_rect(ctx, background_bounds);
 }
@@ -51,36 +53,44 @@ static uint16_t menu_get_num_rows_callback(MenuLayer* me, uint16_t section_index
 }
 
 
+static const char* menu_action_text(uint16_t row)
+{
+    const Action* actions = window_notification_data.currently_displayed_menu_id == 0
+        ? window_notification_data.actions
+        : window_notification_data.submenu_actions;
+    return actions[row].text;
+}
+
 static int16_t menu_get_row_height_callback(MenuLayer* me, MenuIndex* cell_index, void* data)
 {
-    return 30;
+    const GRect bounds = layer_get_bounds(menu_layer_get_layer(me));
+    const GSize text_size = graphics_text_layout_get_content_size(
+        menu_action_text(cell_index->row),
+        menu_font,
+        GRect(0, 0, bounds.size.w - item_padding * 2, INT16_MAX),
+        GTextOverflowModeWordWrap,
+        GTextAlignmentLeft
+    );
+    const int16_t row_height = text_size.h + item_padding * 2;
+    return row_height < bounds.size.h ? row_height : bounds.size.h;
 }
 
 // ReSharper disable once CppParameterMayBeConstPtrOrRef
 static void menu_draw_row_callback(GContext* ctx, const Layer* cell_layer, MenuIndex* cell_index, void* data)
 {
-    GRect bounds = layer_get_bounds(cell_layer);
-    bounds.origin.x += item_padding;
-    bounds.origin.y += item_padding;
-    bounds.size.w -= item_padding * 2;
-    bounds.size.h -= item_padding * 2;
-
-    const Action* actions;
-    if (window_notification_data.currently_displayed_menu_id == 0)
+    const GRect bounds = layer_get_bounds(cell_layer);
+    if (!frozen && menu_cell_layer_is_highlighted(cell_layer))
     {
-        actions = window_notification_data.actions;
-    }
-    else
-    {
-        actions = window_notification_data.submenu_actions;
+        graphics_context_set_stroke_color(ctx, GColorWhite);
+        graphics_draw_rect(ctx, bounds);
     }
 
-
+    graphics_context_set_text_color(ctx, GColorWhite);
     graphics_draw_text(
         ctx,
-        actions[cell_index->row].text,
-        fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD),
-        bounds,
+        menu_action_text(cell_index->row),
+        menu_font,
+        GRect(item_padding, item_padding, bounds.size.w - item_padding * 2, bounds.size.h - item_padding * 2),
         GTextOverflowModeTrailingEllipsis,
         GTextAlignmentLeft,
         NULL
@@ -90,13 +100,13 @@ static void menu_draw_row_callback(GContext* ctx, const Layer* cell_layer, MenuI
 static void menu_freeze()
 {
     frozen = true;
-    menu_layer_set_highlight_colors(menu_layer, GColorWhite, GColorBlack);
+    layer_mark_dirty(menu_layer_get_layer(menu_layer));
 }
 
 static void menu_unfreeze()
 {
     frozen = false;
-    menu_layer_set_highlight_colors(menu_layer, GColorBlack, GColorWhite);
+    layer_mark_dirty(menu_layer_get_layer(menu_layer));
 }
 
 void window_notification_action_list_init(const Window* window)
@@ -123,6 +133,10 @@ void window_notification_action_list_init(const Window* window)
         )
     );
 
+    menu_font = fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD);
+    menu_layer_set_normal_colors(menu_layer, GColorBlack, GColorWhite);
+    menu_layer_set_highlight_colors(menu_layer, GColorBlack, GColorWhite);
+
     menu_layer_set_callbacks(menu_layer,
                              NULL,
                              (MenuLayerCallbacks)
@@ -142,7 +156,6 @@ void window_notification_action_list_init(const Window* window)
     layer_add_child(window_layer, menu_background);
     layer_add_child(menu_background, menu_layer_get_layer(menu_layer));
     layer_set_hidden(menu_background, true);
-    layer_set_hidden(menu_background, true);
 }
 
 void window_notification_action_list_deinit()
@@ -153,6 +166,17 @@ void window_notification_action_list_deinit()
 
 void window_notification_action_list_show()
 {
+    const char* font_key = FONT_KEY_GOTHIC_28_BOLD;
+    switch (action_menu_font_size())
+    {
+    case 24:
+        font_key = FONT_KEY_GOTHIC_24_BOLD;
+        break;
+    case 42:
+        font_key = FONT_KEY_BITHAM_42_BOLD;
+        break;
+    }
+    menu_font = fonts_get_system_font(font_key);
     menu_unfreeze();
     layer_set_hidden(menu_background, false);
     window_notification_data.menu_displayed = true;
