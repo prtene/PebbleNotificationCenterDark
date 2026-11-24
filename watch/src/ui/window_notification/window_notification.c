@@ -99,10 +99,6 @@ void window_notification_ui_redraw_scroller_content()
     // Even if the title and subtitle are very small, reserve at least ICON_SIZE_AND_BOUNDS height for the icon
     y = MAX(y, ICON_SIZE_AND_BOUNDS);
 
-#ifdef PBL_COLOR
-    if (window_notification_data.color != 0) y += MID_TEXT_VERTICAL_PADDING;
-#endif
-
     body.bounds.origin = GPoint(HORIZONTAL_TEXT_PADDING, y);
     body.bounds.size = graphics_text_layout_get_content_size(
         body.text,
@@ -123,42 +119,15 @@ static void scroll_content_paint(Layer* layer, GContext* ctx)
 {
     const GRect bounds = layer_get_bounds(layer);
 
-    GColor on_banner_color;
-    GColor banner_color;
-
-#ifdef PBL_COLOR
-    if (window_notification_data.color != 0)
-    {
-        banner_color = (GColor8){.argb = window_notification_data.color};
-
-        graphics_context_set_fill_color(ctx, banner_color);
-        graphics_fill_rect(
-            ctx,
-            GRect(0, 0, bounds.size.w, body.bounds.origin.y),
-            0,
-            GCornerNone
-        );
-        on_banner_color = gcolor_legible_over(banner_color);
-    }
-    else
-#endif
-    {
-        banner_color = GColorWhite;
-        on_banner_color = GColorBlack;
-    }
-
-    graphics_context_set_text_color(ctx, on_banner_color);
+    graphics_context_set_text_color(ctx, GColorWhite);
 
     graphics_draw_text(ctx, title.text, title.font, title.bounds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
     graphics_draw_text(ctx, subtitle.text, subtitle.font, subtitle.bounds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
 
-    graphics_context_set_text_color(ctx, GColorBlack);
     graphics_draw_text(ctx, body.text, body.font, body.bounds, GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
     if (window_notification_data.icon != NULL)
     {
-        static GColor palette[2];
-        palette[0] = on_banner_color;
-        palette[1] = banner_color;
+        static GColor palette[2] = {GColorWhite, GColorBlack};
 
         gbitmap_set_palette(window_notification_data.icon, palette, false);
         graphics_draw_bitmap_in_rect(
@@ -244,6 +213,7 @@ static void window_disappear(Window* window)
 void window_notification_show()
 {
     Window* window = window_create();
+    window_set_background_color(window, GColorBlack);
 
     window_set_window_handlers(
         window,
