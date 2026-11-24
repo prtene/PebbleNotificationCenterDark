@@ -9,9 +9,12 @@
 static CustomStatusBarLayer* status_bar = NULL;
 
 static SimpleMenuItem section_muting[2] = {};
-static SimpleMenuItem section_notifications[1] = {};
+static SimpleMenuItem section_notifications[2] = {};
 static SimpleMenuSection sections[2] = {};
 static SimpleMenuLayer* menu_layer = NULL;
+static char action_menu_size_label[16];
+
+static void update_data(void);
 
 static void sending_finish(const bool success)
 {
@@ -51,10 +54,20 @@ static void reset_hidden()
     }
 }
 
-static void update_data()
+static void change_action_menu_font_size(int index, void* context)
+{
+    if (!cycle_action_menu_font_size())
+    {
+        vibes_double_pulse();
+    }
+    update_data();
+}
+
+static void update_data(void)
 {
     reload_preferences();
-
+    snprintf(action_menu_size_label, sizeof(action_menu_size_label), "%u pt (change)", (unsigned)action_menu_font_size());
+    section_notifications[1].subtitle = action_menu_size_label;
 
     if (preferences.watch_muted)
     {
@@ -109,7 +122,7 @@ static void window_load(Window* window)
     sections[0].num_items = 2;
     sections[1].title = "Notifications";
     sections[1].items = section_notifications;
-    sections[1].num_items = 1;
+    sections[1].num_items = ARRAY_LENGTH(section_notifications);
 
     section_muting[0].title = "Mute watch";
     section_muting[0].callback = toggle_watch_mute;
@@ -117,6 +130,8 @@ static void window_load(Window* window)
     section_muting[1].callback = toggle_phone_mute;
     section_notifications[0].title = "Restore hidden notifs";
     section_notifications[0].callback = reset_hidden;
+    section_notifications[1].title = "Action menu font";
+    section_notifications[1].callback = change_action_menu_font_size;
     update_data();
 
     menu_layer = simple_menu_layer_create(main_content_bounds, window, sections, 2, NULL);
